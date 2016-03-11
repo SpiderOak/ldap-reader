@@ -11,12 +11,17 @@ Function _PagedAsyncSearch() contains code as part of the
 google-apps-for-your-domain-ldap-sync project
 (https://code.google.com/p/google-apps-for-your-domain-ldap-sync/).
 That code (c) 2006 Google, Inc.
+
+Function _PagedAsyncSearch() *also* contains code from the
+OpenStack project.
+See https://git.openstack.org/cgit/openstack/keystone/commit/?id=db291b340e63b74d8d240abfc37d03fb163f33f1
+That code (c) 2012 The OpenStack Foundation.
+
 '''
 
 import ldap
 import logging
 import re
-import uuid
 
 try:
     from ldap.controls import SimplePagedResultsControl
@@ -66,8 +71,35 @@ class LdapConnection(object):
 
         self.base_dn = base_dn
 
+    def get_group(self, config, ldap_id, group_id):
+        group_type = self._determine_group_type(ldap_id)
+        if group_type == 'ou':
+            return LdapOuGroup(self, config, ldap_id, group_id)
+        elif group_type == 'group':
+            return LdapGroupGroup(self, config, ldap_id, group_id)
+
+    def _determine_group_type(self, ldap_id):
+        '''
+        Determines if the group we're dealing with is either an OU or an LDAP group.
+        '''
+
+        results = self.conn.search_s(
+            ldap_id,
+            ldap.SCOPE_BASE,
+            attrlist=['objectClass'])
+        
+        # The following are objectTypes for OUs.
+        # Possibly multiple entries come back for objectClass:
+        for objClass in results[0][1]['objectClass']:
+            if objClass in LdapGroup.ou_object_classes:
+                return 'ou'
+
+        else:
+            return 'group'
+
+        
 class LdapGroup(object):
-    _ou_object_classes = set(['container', 'organizationalUnit'])
+    ou_object_classes = set(['container', 'organizationalUnit'])  
 
     def __init__(self, ldap_conn, config, ldap_id, group_id):
         log = logging.getLogger('LdapGroup __init__')
@@ -78,37 +110,6 @@ class LdapGroup(object):
         
         # Locally cached list of users.
         self._users = None
-
-    @classmethod
-    def get_group(cls, ldap_conn, config, ldap_id, group_id):
-        '''
-        Creates an appropriate subclass instance based on the type of group.
-        '''
-        group_type = LdapGroup._determine_group_type(ldap_conn, ldap_id)
-        if group_type == 'ou':
-            return LdapOuGroup(ldap_conn, config, ldap_id, group_id)
-        elif group_type == 'group':
-            return LdapGroupGroup(ldap_conn, config, ldap_id, group_id)
-
-    @classmethod
-    def _determine_group_type(cls, ldap_conn, ldap_id):
-        '''
-        Determines if the group we're dealing with is either an OU or an LDAP group.
-        '''
-
-        results = ldap_conn.conn.search_s(
-            ldap_id,
-            ldap.SCOPE_BASE,
-            attrlist=['objectClass'])
-        
-        # The following are objectTypes for OUs.
-        # Possibly multiple entries come back for objectClass:
-        for objClass in results[0][1]['objectClass']:
-            if objClass in cls._ou_object_classes:
-                return 'ou'
-
-        else:
-            return 'group'
 
     def _create_attrlist(self):
         """
@@ -135,7 +136,6 @@ class LdapGroup(object):
         user = {
             'firstname' : result_dict.get(self.config['dir_fname_source'], [' '])[0],
             'lastname'  : result_dict.get(self.config['dir_lname_source'], [' '])[0],
-            'group_id'  : self.group_id,
         }
 
         if self.config.get('dir_email_source', None) not in (None, '',):
@@ -217,8 +217,8 @@ class LdapGroup(object):
             yield user
 
 class LdapOuGroup(LdapGroup):
-    def __init__(self, ldap_conn, config, ldap_id, group_id):
-        super(LdapOuGroup, self).__init__(ldap_conn, config, ldap_id, group_id)
+    def __init__(self, ldap_conn, config, ldap_id):
+        super(LdapOuGroup, self).__init__(ldap_conn, config, ldap_id)
 
     def userlist(self):
         log = logging.getLogger('_get_group_ou %s' % (self.ldap_id,))
@@ -245,12 +245,13 @@ class LdapOuGroup(LdapGroup):
     
 
 class LdapGroupGroup(LdapGroup):
-    def __init__(self, ldap_conn, config, ldap_id, group_id):
-        super(LdapGroupGroup, self).__init__(ldap_conn, config, ldap_id, group_id)
+    def __init__(self, ldap_conn, config, ldap_id):
+        super(LdapGroupGroup, self).__init__(ldap_conn, config, ldap_id)
 
     def _check_result_keys_for_range(self, keys):
         # Check for a ranged result key. Scan the list of result keys
-        # and match against a regex.
+        # and match against a regex becasue MSAD will give us results like this.
+        # See https://msdn.microsoft.com/en-us/library/cc223242.aspx .
         r = re.compile(r"^([^;]+);range=(\d+)-(\d+|\*)$")
         result_key = self.config['dir_member_source']
         end_range = None
@@ -426,8 +427,7 @@ def collect_groups(conn, config):
         if group['user_source'] != 'ldap':
             continue
         ldap_group = LdapGroup.get_group(conn, config,
-                                         group['ldap_id'],
-                                         group['group_id'])
+                                         group['ldap_id'])
         result_groups.extend(ldap_group)
 
     return result_groups
@@ -446,11 +446,30 @@ def _PagedAsyncSearch(ldap_conn, sizelimit, base_dn, scope, filterstr='(objectCl
       A list of users as returned by the LDAP search
     """
 
-    paged_results_control = SimplePagedResultsControl(
-        ldap.LDAP_CONTROL_PAGE_OID, True, (_PAGE_SIZE, ''))
+    # Time to autodetect our library's API, because python-ldap's API intoduced
+    # breaking changes between versions 2.3 and 2.4.
+    use_old_paging_api = False
+
+    if hasattr(ldap, 'LDAP_CONTROL_PAGE_OID'):
+        use_old_paging_api = True
+        paged_results_control = SimplePagedResultsControl(
+            controlType=ldap.LDAP_CONTROL_PAGE_OID,
+            criticality=True,
+            controlValue=(_PAGE_SIZE, '')
+        )
+        page_ctrl_oid=ldap.LDAP_CONTROL_PAGE_OID
+    else:
+        paged_results_control = SimplePagedResultsControl(
+            criticality=True,
+            size=_PAGE_SIZE,
+            cookie=''
+        )
+        page_ctrl_oid=ldap.controls.SimplePagedResultsControl.controlType
+        
     logging.debug('Paged search on %s for %s', base_dn, filterstr)
     users = []
     ix = 0
+    
     while True: 
         if _PAGE_SIZE == 0:
             serverctrls = []
@@ -469,11 +488,15 @@ def _PagedAsyncSearch(ldap_conn, sizelimit, base_dn, scope, filterstr='(objectCl
             break
         cookie = None 
         for serverctrl in serverctrls:
-            if serverctrl.controlType == ldap.LDAP_CONTROL_PAGE_OID:
-                unused_est, cookie = serverctrl.controlValue
-                if cookie:
-                    paged_results_control.controlValue = (_PAGE_SIZE, cookie)
+            if serverctrl.controlType == page_ctrl_oid:
+                if use_old_paging_api:
+                    unused_est, cookie = serverctrl.controlValue
+                    if cookie:
+                        paged_results_control.controlValue = (_PAGE_SIZE, cookie)
+                else:
+                    cookie = paged_results_control.cookie = serverctrl.cookie
                 break
+            
         if not cookie:
             break
     return users
