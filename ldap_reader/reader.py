@@ -78,6 +78,28 @@ class LdapConnection(object):
         elif group_type == 'group':
             return LdapGroupGroup(self, config, ldap_id)
 
+    def enabled_attrs(self):
+        '''
+        Return a list of LDAP fields determining user enable/disable status.
+
+        Each type of LDAP has its own means of tracking if a user is enabled
+        or disabled. This function will return a list of the appropriate fields
+        for the type of LDAP we are using.
+        '''
+        # TODO!
+        pass
+
+    def check_enabled(self, attrs_dict):
+        '''
+        Return boolean value of an enabled account based on the attributes given.
+
+        We expect attrs_dict to be a dictionary with keys corresponding to the
+        return value of `enabled_attrs()`. Based on per-implementation rules,
+        we will return True or False if an account is active or inactive.
+        '''
+        # TODO!
+        pass
+    
     def _determine_group_type(self, ldap_id):
         '''
         Determines if the group we're dealing with is either an OU or an LDAP group.
@@ -123,6 +145,8 @@ class LdapGroup(object):
         if self.config.get('dir_email_source', None) not in (None, '',):
             attrlist.append(self.config['dir_email_source'].encode('utf-8'))
 
+        attrlist.extend(self.ldap_conn.enabled_attrs())
+        
         return attrlist
 
 
@@ -143,6 +167,11 @@ class LdapGroup(object):
             user['username'] = result_dict[self.config['dir_username_source']][0]
         else:
             user['email'] = result_dict[self.config['dir_username_source']][0]
+
+        enabled_attrs_dict = {
+            k: result_dict[k][0] for k in self.ldap_conn.enabled_attrs()
+        }
+        user['enabled'] = self.ldap_conn.check_enabled(enabled_attrs_dict)
 
         return user
 
