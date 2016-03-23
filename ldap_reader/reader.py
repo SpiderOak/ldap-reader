@@ -128,8 +128,9 @@ class LdapGroup(object):
 
     def _build_user_dict(self, result_dict):
         """
-        Creates a dictionary to append to the user results list, with arrangement based on
-        configuration.
+        Creates a dictionary to append to the user results list, with
+        arrangement based on configuration.
+
         """
 
         user = {
@@ -147,6 +148,10 @@ class LdapGroup(object):
 
 
     def _user_for_uid(self, uid, uid_field):
+        """
+        Given a UID, look up a user.
+        """
+        
         log = logging.getLogger("_user_for_uid")
         results = self.ldap_conn.conn.search_s(
             base      = self.config['dir_base_dn'],
@@ -166,6 +171,10 @@ class LdapGroup(object):
         return result
 
     def _user_for_dn(self, uid):
+        """
+        Given a DN, look up a user.
+        """
+        
         user = self.ldap_conn.conn.search_s(
                 uid,
                 ldap.SCOPE_BASE,
@@ -180,7 +189,8 @@ class LdapGroup(object):
 
 
     def _build_user_details(self, uid, uid_field=None):
-        '''Gathers details from the user from LDAP, and creates a user dictionary
+        '''
+        Gathers details from the user from LDAP, and creates a user dictionary
         out of that.
 
         LDAP search is abstracted out based on the uid_field passed
