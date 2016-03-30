@@ -138,10 +138,12 @@ class LdapGroup(object):
         attrlist = [self.config['dir_username_source'].encode('utf-8'),
                     self.config['dir_fname_source'].encode('utf-8'),
                     self.config['dir_lname_source'].encode('utf-8'),
+                    self.config['dir_guid_source'].encode('utf-8'),
                     ]
 
-        if self.config.get('dir_email_source', None) not in (None, '',):
-            attrlist.append(self.config['dir_email_source'].encode('utf-8'))
+        email_source = self.config.get('dir_email_source', None)
+        if email_source:
+            attrlist.append(email_source.encode('utf-8'))
 
         attrlist.extend(vendor.enabled_attrs(self.config))
 
@@ -161,6 +163,7 @@ class LdapGroup(object):
             result_dict.get(self.config['dir_lname_source'], [' '])[0],
         }
 
+        # Add 'email'
         if self.config.get('dir_email_source', None) not in (None, '',):
             user['email'] = result_dict[self.config['dir_email_source']][0]
             user['username'] = result_dict[
@@ -168,6 +171,7 @@ class LdapGroup(object):
         else:
             user['email'] = result_dict[self.config['dir_username_source']][0]
 
+        # Add 'enabled'
         enabled_attrs_dict = {
             k: result_dict[k][0] if k in result_dict else ''
             for k in vendor.enabled_attrs(self.config)
@@ -175,6 +179,12 @@ class LdapGroup(object):
         user['enabled'] = vendor.check_enabled(
             self.config,
             enabled_attrs_dict)
+
+        # Add 'uniqueid'
+        guid_source = self.config.get('dir_guid_source', None)
+        result_guid = result_dict.get(guid_source, None)
+        if guid_source and result_guid:
+            user['uniqueid'] = vendor.fix_guid(self.config, result_guid[0])
 
         return user
 
