@@ -13,7 +13,7 @@ It wraps `python-ldap` and provides an API that is LDAP vendor independent.
 
 Print all users on a group 'MyGroup' on LDAP server for 'example.com': 
 
-```
+```python
 import ldap_reader
 
 config = {
@@ -49,33 +49,36 @@ Here's the specific configuration for each vendor (this pain may be avoided if a
 
 ### AD
 
-```
+```python
 config_ad = {
     'server_type': 'AD',
     'dir_username_source': 'userPrincipalName',
     'dir_member_source': 'member',
+    'dir_guid_source': 'objectGUID',
     ...
 }
 ```
 
 ### RHDS/389DS
 
-```
+```python
 config_rhds = {
     'server_type': 'RHDS',
     'dir_username_source': 'uid',
     'dir_member_source': 'uniqueMember',
+    'dir_guid_source': 'nsuniqueid',
     ...
 }
 ```
 
 ### OpenLDAP
 
-```
+```python
 config_openldap = {
     'server_type': 'OpenLDAP',
     'dir_username_source': 'uid',
     'dir_member_source': 'member',
+    'dir_guid_source': 'entryUUID',
     ...
 }
 ```

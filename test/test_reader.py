@@ -75,6 +75,7 @@ class TestLdapOuGroup(unittest.TestCase):
             'dir_username_source': 'userPrincipalName',
             'dir_fname_source': 'givenName',
             'dir_lname_source': 'sn',
+            'dir_guid_source': 'objectGUID',
         }
 
         self.ldap_results = [
@@ -147,6 +148,7 @@ class TestLdapGroupGroup(unittest.TestCase):
             'dir_username_source': 'userPrincipalName',
             'dir_fname_source': 'givenName',
             'dir_lname_source': 'sn',
+            'dir_guid_source': 'objectGUID',
         }
 
         self.get_nested_users_results = [
@@ -160,12 +162,18 @@ class TestLdapGroupGroup(unittest.TestCase):
             'givenName': ['Billy'],
             'sn': ['Tester'],
             'userAccountControl': [512],
+            'objectGUID':
+            [b'\x78\x56\x34\x12\x34\x12\x78\x56'
+             '\x12\x34\x56\x78\x12\x34\x56\x78'],
         }
         self.return_test2 = {
             'userPrincipalName': ['Test2@test.local'],
             'givenName': ['Dead'],
             'sn': ['Beef'],
             'userAccountControl': [512],
+            'objectGUID':
+            [b'\x56\x78\x12\x34\x12\x34\x56\x78'
+             '\x34\x56\x78\x12\x34\x56\x78\x12'],
         }
         self.return_robot = {
             'userPrincipalName': ['robot@test.local']
@@ -176,11 +184,13 @@ class TestLdapGroupGroup(unittest.TestCase):
              'firstname': 'Billy',
              'lastname': 'Tester',
              'enabled': True,
+             'uniqueid': '12345678-1234-5678-1234-567812345678',
              },
             {'email': 'Test2@test.local',
              'firstname': 'Dead',
              'lastname': 'Beef',
              'enabled': True,
+             'uniqueid': '34127856-3412-7856-3456-781234567812',
              },
             {'email': 'robot@test.local',
              'firstname': ' ',

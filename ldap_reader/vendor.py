@@ -6,6 +6,8 @@ Supported vendors/servers:
     - OpenLDAP
 '''
 
+import uuid
+
 # AD 'userAccountControl' attribute flag values
 AD_ACCOUNT_DISABLE = 0x0002
 AD_LOCKOUT = 0x0010
@@ -54,7 +56,8 @@ def _check_enabled_open_ldap(attrs_dict):
 
 
 def _check_enabled_rhds(attrs_dict):
-    '''Checks 'nsAccountLock' attribute.
+    '''
+    Checks 'nsAccountLock' attribute.
     https://access.redhat.com/documentation/en-US/
     Red_Hat_Directory_Server/8.2/html/Administration_Guide/
     User_Account_Management-Inactivating_Users_and_Roles.html
@@ -100,3 +103,14 @@ def check_enabled(config, attrs_dict):
     '''
     server_type = config["server_type"]
     return _SERVER_ENABLE_ATTR_MAP[server_type][1](attrs_dict)
+
+
+def fix_guid(config, guid):
+    '''
+    Ensures GUIDs are properly encoded if they're from AD.
+    AD uses 'Octet String' for 'objectGUID' type.
+    '''
+    if guid and config['server_type'] == 'AD':
+        return str(uuid.UUID(bytes_le=guid))
+    else:
+        return guid
