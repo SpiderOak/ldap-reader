@@ -409,7 +409,7 @@ class LdapGroupGroup(LdapGroup):
     # Maximum group depth to search for users within nested groups
     _MAX_GROUP_DEPTH = 10
 
-    def _get_nested_users(self, ldap_id, depth=0):
+    def _get_nested_users(self, ldap_id, max_depth=_MAX_GROUP_DEPTH):
         '''
         Recursive function to get the list of all
         nested users within this LDAP group.
@@ -419,8 +419,12 @@ class LdapGroupGroup(LdapGroup):
             - For RHDS Groups, 'uniqueMember' attribute is used.
         Arguments:
         ldap_id : string, entry's dn.
+        max_depth : positive integer, maximum group depth
+        to search for users.
         Returns a list of string, each string is the DN of the user.
         '''
+        assert max_depth >= 0
+
         # Get 'member/s' attribute of ldap_id
         members = self._pas_ranged_results_wrapper(ldap_id)
 
@@ -428,13 +432,13 @@ class LdapGroupGroup(LdapGroup):
         if not members and self._check_user(ldap_id):
             return [ldap_id]
 
-        if depth >= self._MAX_GROUP_DEPTH:
+        if max_depth == 0:
             return []
 
         # It's a group, therefore we need to traverse its members
         users = []
         for member in members:
-            sub_members = self._get_nested_users(member, depth + 1)
+            sub_members = self._get_nested_users(member, max_depth - 1)
             users.extend(sub_members)
 
         return users

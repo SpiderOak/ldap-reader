@@ -86,6 +86,6 @@ config_openldap = {
 ## TODO
 
 - LDAP Vendor type autodetection (this would relieve users from setting a config)
-- Make LdapGroup.userlist() work for OpenLDAP `posixGroups`.
+- Make `LdapGroup.userlist()` work for OpenLDAP `posixGroups`.
 - More research is needed for OpenLDAP Enabled/Disabled account detection (see `ldap_reader.vendor._check_enabled_open_ldap()`).
 - Unit tests for all `ldap_reader` public methods.
