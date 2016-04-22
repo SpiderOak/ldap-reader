@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/SpiderOak/ldap-reader.svg?branch=master)](https://travis-ci.org/SpiderOak/ldap-reader)
+
 # ldap-reader
 
 Python LDAP module for listing accounts and authenticating them against LDAP servers.
