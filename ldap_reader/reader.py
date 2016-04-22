@@ -170,7 +170,7 @@ class LdapConnection(object):
                                           username,),
                                          scope=ldap.SCOPE_SUBTREE,
                                          attrlist=[
-                                             self.config['dir_auth_username'], ])
+                                             self.config['dir_auth_username'], ])  # NOQA
 
         try:
             dist_name, result = _filter_ldap_results(results)
@@ -623,7 +623,8 @@ def _PagedAsyncSearch(ldap_conn, sizelimit, base_dn, scope,
         else:
             serverctrls = [paged_results_control]
         msgid = ldap_conn.conn.search_ext(base_dn, scope,
-                                          filterstr, attrlist=attrlist, serverctrls=serverctrls)
+                                          filterstr, attrlist=attrlist,
+                                          serverctrls=serverctrls)
         res = ldap_conn.conn.result3(msgid=msgid)
         unused_code, results, unused_msgid, serverctrls = res
         for result in results:
