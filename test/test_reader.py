@@ -13,7 +13,7 @@ class TestLdapConnection(unittest.TestCase):
 
     @patch('ldap.initialize')
     def test_connection_creation(self, ldap_mod):
-        con = reader.LdapConnection('aaa', 'bbb', 'ccc', 'ddd')
+        con = reader.LdapConnection('aaa', 'bbb', 'ccc', 'ddd', [])
 
         self.assertEqual(con.base_dn, 'bbb')
 
@@ -22,7 +22,7 @@ class TestLdapConnection(unittest.TestCase):
         ldap_mod.side_effect = Exception('broken connection')
 
         with self.assertRaises(Exception):
-            reader.LdapConnection('aaa', 'bbb', 'ccc', 'ddd')
+            reader.LdapConnection('aaa', 'bbb', 'ccc', 'ddd', [])
 
     @patch('ldap.initialize')
     def test_auth_failure(self, ldap_mod):
@@ -32,7 +32,7 @@ class TestLdapConnection(unittest.TestCase):
         ldap_mod.return_value = mockcon
 
         with self.assertRaises(Exception):
-            reader.LdapConnection('aaa', 'bbb', 'ccc', 'ddd')
+            reader.LdapConnection('aaa', 'bbb', 'ccc', 'ddd', [])
 
     @patch('ldap_reader.reader.LdapGroupGroup')
     @patch('ldap_reader.reader.LdapOuGroup')
@@ -45,8 +45,8 @@ class TestLdapConnection(unittest.TestCase):
         l_ou_grp.return_value = sentinel.ougrp
         l_grp_grp.return_value = sentinel.grpgrp
 
-        con = reader.LdapConnection('aaa', 'bbb', 'ccc', 'ddd')
-        ougrp = con.get_group(dict(), 'aaa')
+        con = reader.LdapConnection('aaa', 'bbb', 'ccc', 'ddd', [])
+        ougrp = con.get_group('aaa')
 
         self.assertIs(ougrp, sentinel.ougrp)
 
@@ -61,8 +61,8 @@ class TestLdapConnection(unittest.TestCase):
         l_ou_grp.return_value = sentinel.ougrp
         l_grp_grp.return_value = sentinel.grpgrp
 
-        con = reader.LdapConnection('aaa', 'bbb', 'ccc', 'ddd')
-        grpgrp = con.get_group(dict(), 'aaa')
+        con = reader.LdapConnection('aaa', 'bbb', 'ccc', 'ddd', [])
+        grpgrp = con.get_group('aaa')
 
         self.assertIs(grpgrp, sentinel.grpgrp)
 

@@ -40,7 +40,7 @@ assert users
 
 # Validate credentials for the first user within the group
 user = users[0]
-assert my_group.can_auth(user['email'], 'password')
+assert ldap_conn.can_auth(config, user['email'], 'password')
 ``` 
 
 ## Configuration
@@ -55,6 +55,7 @@ config_ad = {
     'dir_username_source': 'userPrincipalName',
     'dir_member_source': 'member',
     'dir_guid_source': 'objectGUID',
+    'dir_auth_username': 'userPrincipalName', # Needed for 'can_auth'
     ...
 }
 ```
@@ -67,6 +68,7 @@ config_rhds = {
     'dir_username_source': 'uid',
     'dir_member_source': 'uniqueMember',
     'dir_guid_source': 'nsuniqueid',
+    'dir_auth_source': 'dn', # Needed for 'can_auth'
     ...
 }
 ```
@@ -79,6 +81,7 @@ config_openldap = {
     'dir_username_source': 'uid',
     'dir_member_source': 'member',
     'dir_guid_source': 'entryUUID',
+    'dir_auth_source': 'dn', # Needed for 'can_auth'
     ...
 }
 ```

@@ -74,16 +74,18 @@ class LdapConnection(object):
     Represents a connection to an LDAP Server.
     '''
 
-    def __init__(self, uri, base_dn, username, password):
+    def __init__(self, uri, base_dn, username, password, config):
         log = logging.getLogger('LdapConnection __init__')
-        self.conn = ldap.initialize(uri)
+        self.uri = uri
+        self.conn = ldap.initialize(self.uri)
         self.conn.simple_bind_s(username, password)
         log.debug("Bound to %s as %s", uri, username)
         self.conn.protocol_version = 3
 
         self.base_dn = base_dn
+        self.config = config
 
-    def get_group(self, config, ldap_id):
+    def get_group(self, ldap_id):
         '''
         Returns an 'LdapGroupGroup' or 'LdapGroup' given an ldap_id.
         Arguments:
@@ -92,9 +94,9 @@ class LdapConnection(object):
         '''
         group_type = self._determine_group_type(ldap_id)
         if group_type == 'ou':
-            return LdapOuGroup(self, config, ldap_id)
+            return LdapOuGroup(self, self.config, ldap_id)
         elif group_type == 'group':
-            return LdapGroupGroup(self, config, ldap_id)
+            return LdapGroupGroup(self, self.config, ldap_id)
 
     def _determine_group_type(self, ldap_id):
         '''
@@ -114,6 +116,92 @@ class LdapConnection(object):
                 return 'ou'
 
         return 'group'
+
+    def can_auth(self, username, password):
+        '''
+        Checks the ability of the given username and
+        password to connect to the AD.
+        Returns True if valid, false if not.
+        '''
+        log = logging.getLogger("can_auth")
+        # Throw out empty passwords.
+        if password == "":
+            return False
+
+        # Use another ldap connection to test user authentication
+        auth_success = False
+        user_ldap_conn = ldap.initialize(self.uri)
+        try:
+            auth_user = self.get_auth_username(username)
+            user_ldap_conn.simple_bind_s(auth_user, password)
+            auth_success = True
+        # ANY failure here results in a failure to auth. No exceptions!
+        except Exception as excep:
+            log.debug('Failed on LDAP bind: %s' % excep)
+            auth_success = False
+        finally:
+            user_ldap_conn.unbind_s()
+
+        return auth_success
+
+    def get_auth_username(self, username):
+        '''
+        Returns the appropriate username to authenticate against.
+
+        Will return either the `username` argument or a
+        username gotten from the LDAP.
+        '''
+        # If we have no configuration telling us to
+        # lookup a different username, just return here.
+        if (self.config.get('dir_auth_username') in (None, '',) and
+                self.config.get('dir_auth_source') in (None, '',)):
+            return username
+
+        if self.config.get('dir_auth_source') == 'dn':
+            results = self.conn.search_s(self.base_dn,
+                                         filterstr='(%s=%s)' %
+                                         (self.config['dir_username_source'],
+                                          username,),
+                                         scope=ldap.SCOPE_SUBTREE,)
+        else:
+            results = self.conn.search_s(self.base_dn,
+                                         filterstr='(%s=%s)' %
+                                         (self.config['dir_username_source'],
+                                          username,),
+                                         scope=ldap.SCOPE_SUBTREE,
+                                         attrlist=[
+                                             self.config['dir_auth_username'], ])  # NOQA
+
+        try:
+            dist_name, result = _filter_ldap_results(results)
+        except NotEnoughLdapResults:
+            raise Exception("No LDAP user found for username %s" % (username,))
+        except TooManyLdapResults:
+            raise Exception("Too many LDAP users found "
+                            "via field %s for username %s" %
+                            (self.config['dir_username_source'], username,))
+
+        if self.config.get('dir_auth_source') == 'dn':
+            return dist_name
+        else:
+            return result[self.config['dir_auth_username']][0]
+
+    def collect_groups(self):
+        '''
+        Returns a list of lists of users per user group.
+        The user groups are a list of LDAP DNs.
+        '''
+
+        result_groups = []
+
+        for group in self.config['groups']:
+            # Make sure we don't try to sync non-LDAP groups.
+            if group['user_source'] != 'ldap':
+                continue
+            ldap_group = self.conn.get_group(self.config, group['ldap_id'])
+            result_groups.extend(ldap_group)
+
+        return result_groups
 
 
 class LdapGroup(object):
@@ -481,99 +569,14 @@ def _filter_ldap_results(results):
         raise NotEnoughLdapResults()
 
     result_list = [(dist_name, result)
-                   for dist_name, result in results if dist_name is not None]
+                   for dist_name, result in results
+                   if dist_name is not None]
 
     # Having more than one result for this is not good.
     if len(result_list) > 1:
         raise TooManyLdapResults()
 
     return result_list[0]
-
-
-def get_auth_username(config, username):
-    '''
-    Returns the appropriate username to authenticate against.
-
-    Will return either the `username` argument or a
-    username gotten from the LDAP.
-    '''
-    # If we have no configuration telling us to lookup a different username,
-    # just return here.
-    if (config.get('dir_auth_username') in (None, '',) and
-            config.get('dir_auth_source') in (None, '',)):
-        return username
-
-    my_ldap = LdapConnection(config['dir_uri'], config['dir_base_dn'],
-                             config['dir_user'], config['dir_password'])
-
-    if config.get('dir_auth_source') == 'dn':
-        results = my_ldap.conn.search_s(my_ldap.base_dn,
-                                        filterstr='(%s=%s)' %
-                                        (config['dir_username_source'],
-                                         username,),
-                                        scope=ldap.SCOPE_SUBTREE,)
-    else:
-        results = my_ldap.conn.search_s(my_ldap.base_dn,
-                                        filterstr='(%s=%s)' %
-                                        (config['dir_username_source'],
-                                         username,),
-                                        scope=ldap.SCOPE_SUBTREE,
-                                        attrlist=[
-                                            config['dir_auth_username'], ])
-
-    try:
-        dist_name, result = _filter_ldap_results(results)
-    except NotEnoughLdapResults:
-        raise Exception("No LDAP user found for username %s" % (username,))
-    except TooManyLdapResults:
-        raise Exception("Too many LDAP users found "
-                        "via field %s for username %s" %
-                        (config['dir_username_source'], username,))
-
-    if config.get('dir_auth_source') == 'dn':
-        return dist_name
-    else:
-        return result[config['dir_auth_username']][0]
-
-
-def can_auth(config, username, password):
-    '''
-    Checks the ability of the given username and password to connect to the AD.
-    Returns true if valid, false if not.
-    '''
-    log = logging.getLogger("can_auth")
-    # Throw out empty passwords.
-    if password == "":
-        return False
-
-    conn = ldap.initialize(config['dir_uri'])
-    try:
-        auth_user = get_auth_username(config, username)
-        conn.simple_bind_s(auth_user, password)
-    # ANY failure here results in a failure to auth. No exceptions!
-    except Exception:
-        log.debug("Failed on LDAP bind")
-        return False
-
-    return True
-
-
-def collect_groups(conn, config):
-    '''
-    Returns a list of lists of users per user group.
-    The user groups are a list of LDAP DNs.
-    '''
-
-    result_groups = []
-
-    for group in config['groups']:
-        # Make sure we don't try to sync non-LDAP groups.
-        if group['user_source'] != 'ldap':
-            continue
-        ldap_group = conn.get_group(config, group['ldap_id'])
-        result_groups.extend(ldap_group)
-
-    return result_groups
 
 
 def _PagedAsyncSearch(ldap_conn, sizelimit, base_dn, scope,
@@ -620,7 +623,8 @@ def _PagedAsyncSearch(ldap_conn, sizelimit, base_dn, scope,
         else:
             serverctrls = [paged_results_control]
         msgid = ldap_conn.conn.search_ext(base_dn, scope,
-                                          filterstr, attrlist=attrlist, serverctrls=serverctrls)
+                                          filterstr, attrlist=attrlist,
+                                          serverctrls=serverctrls)
         res = ldap_conn.conn.result3(msgid=msgid)
         unused_code, results, unused_msgid, serverctrls = res
         for result in results:

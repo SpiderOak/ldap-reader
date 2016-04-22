@@ -12,7 +12,4 @@ from .reader import (
     InvalidGroupConfiguration,
     TooManyLdapResults,
     NotEnoughLdapResults,
-    can_auth,
-    collect_groups,
-    get_auth_username,
 )
