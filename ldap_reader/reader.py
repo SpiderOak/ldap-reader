@@ -74,14 +74,15 @@ class LdapConnection(object):
     Represents a connection to an LDAP Server.
     '''
 
-    def __init__(self, uri, base_dn, username, password, config):
+    def __init__(self, uri, base_dn, username, password, config, timeout=10):
         log = logging.getLogger('LdapConnection __init__')
+        self.timeout = timeout
         self.uri = uri
         self.conn = ldap.initialize(self.uri)
+        self.conn.set_option(ldap.OPT_NETWORK_TIMEOUT, self.timeout)
         self.conn.simple_bind_s(username, password)
         log.debug("Bound to %s as %s", uri, username)
         self.conn.protocol_version = 3
-
         self.base_dn = base_dn
         self.config = config
 
@@ -133,6 +134,7 @@ class LdapConnection(object):
         user_ldap_conn = ldap.initialize(self.uri)
         try:
             auth_user = self.get_auth_username(username)
+            user_ldap_conn.set_option(ldap.OPT_NETWORK_TIMEOUT, self.timeout)
             user_ldap_conn.simple_bind_s(auth_user, password)
             auth_success = True
         # ANY failure here results in a failure to auth. No exceptions!
@@ -203,6 +205,12 @@ class LdapConnection(object):
 
         return result_groups
 
+    def close(self):
+        '''
+        Terminates the connection to the LDAP server.
+        '''
+        self.conn.unbind_s()
+
 
 class LdapGroup(object):
     '''
@@ -219,40 +227,43 @@ class LdapGroup(object):
         self._users = None
 
     def _create_attrlist(self):
-        """
+        '''
         Creates an LDAP search attribute list based on our configuration.
-        """
+        '''
+        attrlist = [
+            self.config['dir_username_source'].encode('utf-8'),
+            self.config['dir_guid_source'].encode('utf-8'),
+        ]
 
-        attrlist = [self.config['dir_username_source'].encode('utf-8'),
-                    self.config['dir_fname_source'].encode('utf-8'),
-                    self.config['dir_lname_source'].encode('utf-8'),
-                    self.config['dir_guid_source'].encode('utf-8'),
-                    ]
+        def append_if_present(attr):
+            attr_source = self.config.get(attr)
+            if attr_source:
+                attrlist.append(attr_source.encode('utf-8'))
 
-        email_source = self.config.get('dir_email_source', None)
-        if email_source:
-            attrlist.append(email_source.encode('utf-8'))
+        append_if_present('dir_fname_source')
+        append_if_present('dir_lname_source')
+        append_if_present('dir_email_source')
 
         attrlist.extend(vendor.enabled_attrs(self.config))
-
         return attrlist
 
     def _build_user_dict(self, result_dict):
         """
         Creates a dictionary to append to the user results list, with
         arrangement based on configuration.
-
         """
+        user = {}
 
-        user = {
-            'firstname':
-            result_dict.get(self.config['dir_fname_source'], [' '])[0],
-            'lastname':
-            result_dict.get(self.config['dir_lname_source'], [' '])[0],
-        }
+        # Add 'firstname' and 'lastname' (if present)
+        if self.config.get('dir_fname_source') not in (None, '',):
+            user['firstname'] = result_dict.get(
+                self.config['dir_fname_source'], [' '])[0]
+        if self.config.get('dir_lname_source') not in (None, '',):
+            user['lastname'] = result_dict.get(
+                self.config['dir_lname_source'], [' '])[0]
 
         # Add 'email'
-        if self.config.get('dir_email_source', None) not in (None, '',):
+        if self.config.get('dir_email_source') not in (None, '',):
             user['email'] = result_dict[self.config['dir_email_source']][0]
             user['username'] = result_dict[
                 self.config['dir_username_source']][0]
@@ -547,13 +558,18 @@ class LdapGroupGroup(LdapGroup):
             if user_details is None:
                 continue
 
+            fname_valid = not self.config.get(
+                'dir_fname_source') or user_details['firstname']
+            lname_valid = not self.config.get(
+                'dir_lname_source') or user_details['lastname']
+
             # Add each user that matches
-            if not user_details['firstname'] and not user_details['lastname']:
+            if not fname_valid and not lname_valid:
                 msg = 'Unable to process user %s. ' \
                       'The user had no first name or last name.' % user_details
                 print(msg)
                 log.error(msg)
-            elif user_details is not None:
+            else:
                 user_list.append(user_details)
 
         return user_list
