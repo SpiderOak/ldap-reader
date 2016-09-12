@@ -148,7 +148,7 @@ class TestLdapOuGroup(unittest.TestCase):
             grp.userlist()
 
     @patch('ldap_reader.reader._PagedAsyncSearch')
-    def test_userlist_raises(self, mock_pas):
+    def test_userlist_no_names(self, mock_pas):
         config = {
             'server_type': self.config['server_type'],
             'dir_username_source': self.config['dir_username_source'],
