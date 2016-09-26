@@ -580,13 +580,13 @@ def _filter_ldap_results(results):
     Checks LDAP results for too many or too little results.
     '''
 
-    # Make sure there's something there to begin with.
-    if len(results) < 1:
-        raise NotEnoughLdapResults()
-
     result_list = [(dist_name, result)
                    for dist_name, result in results
                    if dist_name is not None]
+
+    # Make sure there are enough results.
+    if len(result_list) < 1:
+        raise NotEnoughLdapResults()
 
     # Having more than one result for this is not good.
     if len(result_list) > 1:
