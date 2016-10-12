@@ -113,6 +113,15 @@ class TestLdapOuGroup(unittest.TestCase):
              },
         ]
 
+        self.group_results_no_names = [
+            {
+                'email': user['email'],
+                'enabled': user['enabled'],
+            }
+            for user in self.group_results
+        ]
+
+
     @patch('ldap_reader.reader._PagedAsyncSearch')
     def test_userlist(self, mock_pas):
         mock_pas.return_value = self.ldap_results
@@ -138,6 +147,25 @@ class TestLdapOuGroup(unittest.TestCase):
         with self.assertRaises(Exception):
             grp.userlist()
 
+    @patch('ldap_reader.reader._PagedAsyncSearch')
+    def test_userlist_no_names(self, mock_pas):
+        config = {
+            'server_type': self.config['server_type'],
+            'dir_username_source': self.config['dir_username_source'],
+            'dir_guid_source': self.config['dir_guid_source'],
+        }
+        mock_pas.return_value = self.ldap_results
+
+        # Mock LdapConnection.check_enabled() to return True
+        mock_ldap_conn = MagicMock()
+        mock_ldap_conn.check_enabled.return_value = True
+
+        grp = reader.LdapOuGroup(
+            mock_ldap_conn, config, sentinel.ldap_id,
+        )
+        users = grp.userlist()
+
+        self.assertEqual(self.group_results_no_names, users)
 
 class TestLdapGroupGroup(unittest.TestCase):
 
