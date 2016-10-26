@@ -153,13 +153,16 @@ class LdapConnection(object):
         Will return either the `username` argument or a
         username gotten from the LDAP.
         '''
+        dir_auth_username = self.config.get('dir_auth_username')
+        dir_auth_source = self.config.get('dir_auth_source')
+
         # If we have no configuration telling us to
         # lookup a different username, just return here.
-        if (self.config.get('dir_auth_username') in (None, '',) and
-                self.config.get('dir_auth_source') in (None, '',)):
+        if (dir_auth_username in (None, '',) and
+            dir_auth_source in (None, '',)):
             return username
 
-        if self.config.get('dir_auth_source') == 'dn':
+        if dir_auth_source == 'dn':
             results = self.conn.search_s(self.base_dn,
                                          filterstr='(%s=%s)' %
                                          (self.config['dir_username_source'],
@@ -172,7 +175,9 @@ class LdapConnection(object):
                                           username,),
                                          scope=ldap.SCOPE_SUBTREE,
                                          attrlist=[
-                                             self.config['dir_auth_username'], ])  # NOQA
+                                            dir_auth_username.encode('utf-8'), 
+                                         ],
+                                         )
 
         try:
             dist_name, result = _filter_ldap_results(results)
@@ -183,10 +188,10 @@ class LdapConnection(object):
                             "via field %s for username %s" %
                             (self.config['dir_username_source'], username,))
 
-        if self.config.get('dir_auth_source') == 'dn':
+        if dir_auth_source == 'dn':
             return dist_name
         else:
-            return result[self.config['dir_auth_username']][0]
+            return result[dir_auth_username][0]
 
     def collect_groups(self):
         '''
