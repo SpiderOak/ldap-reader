@@ -3,6 +3,7 @@
 Unit Tests for the ldap_reader module
 '''
 
+import copy
 import unittest
 from mock import patch, Mock, MagicMock, sentinel
 
@@ -94,6 +95,14 @@ class TestLdapOuGroup(unittest.TestCase):
             ('CN=Robot,CN=users,DC=test,DC=local',
              {'userPrincipalName': ['robot@test.local']}),
         ]
+        # self.ldap_results_with_empty has an entry w/o 'userPrincipalName'
+        self.ldap_results_with_empty = copy.copy(self.ldap_results)
+        self.ldap_results_with_empty.append(
+            ('CN=Empty,CN=users,DC=test,DC=local',
+             {'givenName': ['Empty'],
+              'sn': ['Test'],
+              }),
+        )
 
         self.group_results = [
             {'email': 'Test1@test.local',
@@ -120,7 +129,6 @@ class TestLdapOuGroup(unittest.TestCase):
             }
             for user in self.group_results
         ]
-
 
     @patch('ldap_reader.reader._PagedAsyncSearch')
     def test_userlist(self, mock_pas):
@@ -167,6 +175,26 @@ class TestLdapOuGroup(unittest.TestCase):
 
         self.assertEqual(self.group_results_no_names, users)
 
+    @patch('ldap_reader.reader._PagedAsyncSearch')
+    def test_userlist_with_empty(self, mock_pas):
+        """
+        Test case for LdapOuGroup.userlist() with a user with
+        missing 'userPrincipalName' attribute.
+        It tests that LdapOuGroup.userlist() will continue processing even
+        if one of the user fails to process.
+        """
+        mock_pas.return_value = self.ldap_results_with_empty
+
+        # Mock LdapConnection.check_enabled() to return True
+        mock_ldap_conn = MagicMock()
+        mock_ldap_conn.check_enabled.return_value = True
+
+        grp = reader.LdapOuGroup(
+            mock_ldap_conn, self.config, sentinel.ldap_id)
+
+        self.assertEqual(self.group_results, grp.userlist())
+
+
 class TestLdapGroupGroup(unittest.TestCase):
 
     def setUp(self):
@@ -184,6 +212,12 @@ class TestLdapGroupGroup(unittest.TestCase):
             'CN=Test2,CN=users,DC=test,DC=local',
             'CN=Robot,CN=users,DC=test,DC=local',
         ]
+
+        self.get_nested_users_results_with_empty = copy.copy(
+            self.get_nested_users_results)
+        self.get_nested_users_results_with_empty.append(
+            'CN=Empty,CN=users,DC=test,DC=local',
+        )
 
         self.return_test1 = {
             'userPrincipalName': ['Test1@test.local'],
@@ -205,6 +239,15 @@ class TestLdapGroupGroup(unittest.TestCase):
         }
         self.return_robot = {
             'userPrincipalName': ['robot@test.local']
+        }
+        # Entry with no 'userPrincipalName' set
+        self.return_empty = {
+            'givenName': ['Empty'],
+            'sn': ['Test'],
+            'userAccountControl': [512],
+            'objectGUID':
+            [b'\x56\x78\x12\x34\x12\x34\x56\x78'
+             '\x34\x56\x78\x12\x34\x56\x43\x44'],
         }
 
         self.group_results = [
@@ -237,7 +280,32 @@ class TestLdapGroupGroup(unittest.TestCase):
         mock_user_for_dn.side_effect = [
             self.return_test1,
             self.return_test2,
-            self.return_robot]
+            self.return_robot,
+        ]
+        mock_ldap_conn = MagicMock()
+        mock_ldap_conn.check_enabled.return_value = True
+        group = reader.LdapGroupGroup(
+            mock_ldap_conn, self.config, sentinel.ldap_id)
+
+        self.assertEqual(group.userlist(), self.group_results)
+
+    @patch('ldap_reader.reader.LdapGroup._user_for_dn')
+    @patch('ldap_reader.reader.LdapGroupGroup._get_nested_users')
+    def test_userlist_with_empty(
+            self, mock_get_nested_users, mock_user_for_dn):
+        '''
+        Test case for LdapGroupGroup.userlist() with a user with no
+        'userPrincipalName' attribute.
+        It tests that LdapGroupGroup.userlist() will continue processing even
+        if one of the user fails to process.
+        '''
+        mock_get_nested_users.return_value = self.get_nested_users_results_with_empty
+        mock_user_for_dn.side_effect = [
+            self.return_test1,
+            self.return_test2,
+            self.return_robot,
+            self.return_empty,
+        ]
         mock_ldap_conn = MagicMock()
         mock_ldap_conn.check_enabled.return_value = True
         group = reader.LdapGroupGroup(

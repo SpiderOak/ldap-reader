@@ -159,7 +159,7 @@ class LdapConnection(object):
         # If we have no configuration telling us to
         # lookup a different username, just return here.
         if (dir_auth_username in (None, '',) and
-            dir_auth_source in (None, '',)):
+                dir_auth_source in (None, '',)):
             return username
 
         if dir_auth_source == 'dn':
@@ -175,7 +175,7 @@ class LdapConnection(object):
                                           username,),
                                          scope=ldap.SCOPE_SUBTREE,
                                          attrlist=[
-                                            dir_auth_username.encode('utf-8'), 
+                                             dir_auth_username.encode('utf-8'),
                                          ],
                                          )
 
@@ -354,7 +354,15 @@ class LdapGroup(object):
 
         log.debug("Appending user %s", user_dict)
 
-        return self._build_user_dict(user_dict)
+        built_user_dict = None
+        try:
+            built_user_dict = self._build_user_dict(user_dict)
+        except Exception as exception:
+            log.info(
+                "_build_user_dict(%s) failed: %s" %
+                (user_dict, exception))
+
+        return built_user_dict
 
     def __iter__(self):
         """
@@ -399,17 +407,27 @@ class LdapOuGroup(LdapGroup):
         for dist_name, result_dict in paged_async_search:
             if dist_name is None or not result_dict:
                 continue
-            if self.config['dir_username_source'] not in result_dict:
-                log.info("User %s lacks %s, skipping", dist_name,
-                         self.config['dir_username_source'])
+            dir_username_source = self.config.get('dir_username_source')
+            if not result_dict.get(dir_username_source):
+                log.info(
+                    "User %s lacks %s, skipping",
+                    dist_name,
+                    dir_username_source
+                )
                 continue
 
             log.debug(
                 "Appending user %s", result_dict[
                     self.config['dir_username_source']][0])
 
-            user = self._build_user_dict(result_dict)
-            user_list.append(user)
+            built_user_dict = None
+            try:
+                built_user_dict = self._build_user_dict(result_dict)
+                user_list.append(built_user_dict)
+            except Exception as exception:
+                log.info(
+                    "_build_user_dict(%s) failed: %s" %
+                    (user_dict, exception))
 
         return user_list
 
@@ -572,7 +590,6 @@ class LdapGroupGroup(LdapGroup):
             if not fname_valid and not lname_valid:
                 msg = 'Unable to process user %s. ' \
                       'The user had no first name or last name.' % user_details
-                print(msg)
                 log.error(msg)
             else:
                 user_list.append(user_details)
