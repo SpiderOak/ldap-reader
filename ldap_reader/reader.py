@@ -359,8 +359,8 @@ class LdapGroup(object):
             built_user_dict = self._build_user_dict(user_dict)
         except Exception as exception:
             log.info(
-                "_build_user_dict(%s) failed: %s" %
-                (user_dict, exception))
+                "user=%s _build_user_dict(%s) failed: %s" %
+                (uid, user_dict, exception))
 
         return built_user_dict
 
@@ -426,8 +426,8 @@ class LdapOuGroup(LdapGroup):
                 user_list.append(built_user_dict)
             except Exception as exception:
                 log.info(
-                    "_build_user_dict(%s) failed: %s" %
-                    (user_dict, exception))
+                    "user=%s _build_user_dict(%s) failed: %s" %
+                    (dist_name, user_dict, exception))
 
         return user_list
 
