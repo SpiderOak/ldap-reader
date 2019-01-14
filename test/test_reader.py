@@ -5,7 +5,7 @@ Unit Tests for the ldap_reader module
 
 import copy
 import unittest
-from mock import patch, Mock, MagicMock, sentinel
+from unittest.mock import patch, Mock, MagicMock, sentinel
 
 from ldap_reader import reader, vendor
 
@@ -226,7 +226,7 @@ class TestLdapGroupGroup(unittest.TestCase):
             'userAccountControl': [512],
             'objectGUID':
             [b'\x78\x56\x34\x12\x34\x12\x78\x56'
-             '\x12\x34\x56\x78\x12\x34\x56\x78'],
+             b'\x12\x34\x56\x78\x12\x34\x56\x78'],
         }
         self.return_test2 = {
             'userPrincipalName': ['Test2@test.local'],
@@ -235,7 +235,7 @@ class TestLdapGroupGroup(unittest.TestCase):
             'userAccountControl': [512],
             'objectGUID':
             [b'\x56\x78\x12\x34\x12\x34\x56\x78'
-             '\x34\x56\x78\x12\x34\x56\x78\x12'],
+             b'\x34\x56\x78\x12\x34\x56\x78\x12'],
         }
         self.return_robot = {
             'userPrincipalName': ['robot@test.local']
@@ -247,7 +247,7 @@ class TestLdapGroupGroup(unittest.TestCase):
             'userAccountControl': [512],
             'objectGUID':
             [b'\x56\x78\x12\x34\x12\x34\x56\x78'
-             '\x34\x56\x78\x12\x34\x56\x43\x44'],
+             b'\x34\x56\x78\x12\x34\x56\x43\x44'],
         }
 
         self.group_results = [
