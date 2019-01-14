@@ -24,7 +24,7 @@ import ldap
 import logging
 import re
 
-import vendor
+from . import vendor
 
 
 try:
