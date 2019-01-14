@@ -1,3 +1,12 @@
 language: python
-install: pip install -r requirements/requirements.txt
-script: test/test_reader.py
+python:
+  - '2.7'
+  - '3.5'
+  - '3.6'
+before_install:
+- pip install poetry
+install:
+- poetry install -v
+- pip install tox-travis
+script:
+- tox
